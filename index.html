@@ -34,19 +34,21 @@
 
         #gameContainer {
             position: relative;
-            width: 100vw;
-            height: 100vh;
-            aspect-ratio: 4 / 3;
+            width: 100%;
+            height: 100%;
             background: green;
             display: flex;
             flex-direction: column;
+            justify-content: center;
+            align-items: center;
         }
 
         canvas {
             display: block;
             width: 100%;
             height: 100%;
-            image-rendering: crisp-edges;
+            image-rendering: auto;
+            background: green;
         }
 
         #controls {
@@ -119,23 +121,22 @@
             canvas.width = SCREEN_WIDTH;
             canvas.height = SCREEN_HEIGHT;
 
-            const container = document.getElementById('gameContainer');
             const ratio = SCREEN_WIDTH / SCREEN_HEIGHT;
             const windowRatio = window.innerWidth / window.innerHeight;
+            let width, height;
 
             if (windowRatio > ratio) {
-                // Finestra més ampla que el joc
-                const height = window.innerHeight;
-                const width = height * ratio;
-                canvas.style.width = width + 'px';
-                canvas.style.height = height + 'px';
+                // Finestra més ampla
+                height = window.innerHeight;
+                width = height * ratio;
             } else {
-                // Finestra més estreta que el joc
-                const width = window.innerWidth;
-                const height = width / ratio;
-                canvas.style.width = width + 'px';
-                canvas.style.height = height + 'px';
+                // Finestra més alta
+                width = window.innerWidth;
+                height = width / ratio;
             }
+
+            canvas.style.width = width + 'px';
+            canvas.style.height = height + 'px';
         }
 
         resizeCanvas();
