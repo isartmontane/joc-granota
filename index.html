@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Joc Granota">
+    <title>Joc de la Granota</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect fill='%2332CD32' width='180' height='180'/><circle cx='90' cy='90' r='70' fill='%2300AA00'/></svg>">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #1a1a1a;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            max-width: 800px;
+            max-height: 600px;
+            background: green;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            image-rendering: crisp-edges;
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            z-index: 10;
+        }
+
+        .btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            border: 2px solid white;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            touch-action: none;
+        }
+
+        .btn:active {
+            background: rgba(255, 255, 255, 0.6);
+        }
+
+        @media (max-width: 600px) {
+            #controls {
+                bottom: 10px;
+                gap: 10px;
+            }
+
+            .btn {
+                width: 50px;
+                height: 50px;
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        <div id="controls">
+            <button class="btn" id="btnUp">⬆️</button>
+            <button class="btn" id="btnLeft">⬅️</button>
+            <button class="btn" id="btnDown">⬇️</button>
+            <button class="btn" id="btnRight">➡️</button>
+        </div>
+    </div>
+
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Responsive canvas
+        function resizeCanvas() {
+            const container = document.getElementById('gameContainer');
+            const ratio = 800 / 600;
+            const containerRatio = container.clientWidth / container.clientHeight;
+
+            if (containerRatio > ratio) {
+                canvas.width = Math.floor(container.clientHeight * ratio);
+                canvas.height = container.clientHeight;
+            } else {
+                canvas.width = container.clientWidth;
+                canvas.height = Math.floor(container.clientWidth / ratio);
+            }
+        }
+
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Game constants
+        const SCREEN_WIDTH = 800;
+        const SCREEN_HEIGHT = 600;
+
+        // Game state
+        let gameState = "JUGANT";
+        let vides = 3;
+        let puntuacio = 0;
+        let t0 = Date.now();
+        let tActual = 0;
+
+        // Granota
+        let granota = {
+            x: 400, y: 550, amp: 40, al: 40, v: 6
+        };
+
+        // Tecles
+        let keys = { up: false, down: false, left: false, right: false };
+
+        // Cotxes (velocitats augmentades)
+        let cotxe1 = {x: 50, y: 120, amp: 45, al: 25, v: 6.5, color: 'yellow', carrils: [120, 180], carril: 0, canvi_timer: 0, tipus: 'normal'};
+        let cotxe2 = {x: 800, y: 180, amp: 65, al: 25, v: -8, color: 'red', carrils: [180, 240], carril: 0, canvi_timer: 0, tipus: 'normal'};
+        let cotxe3 = {x: 150, y: 240, amp: 45, al: 25, v: 9, color: 'blue', carrils: [240, 300], carril: 0, canvi_timer: 0, tipus: 'normal'};
+        let cotxe4 = {x: 600, y: 300, amp: 55, al: 25, v: -5.5, color: 'orange', carrils: [300, 360], carril: 0, canvi_timer: 0, tipus: 'normal'};
+        let cotxe5 = {x: 300, y: 360, amp: 50, al: 25, v: 10, color: 'purple', carrils: [360, 410], carril: 0, canvi_timer: 0, tipus: 'normal'};
+        let cotxe6 = {x: 0, y: 420, amp: 50, al: 25, v: 8, color: 'cyan', carrils: [410, 360], carril: 0, canvi_timer: 0, tipus: 'normal'};
+        let camio1 = {x: -100, y: 200, amp: 90, al: 30, v: 4.5, color: 'brown', carrils: [180, 240], carril: 0, canvi_timer: 0, tipus: 'camio', visible: false, aparicio_timer: 0};
+        let camio2 = {x: 800, y: 320, amp: 90, al: 30, v: -6, color: 'darkred', carrils: [300, 360], carril: 0, canvi_timer: 0, tipus: 'camio', visible: false, aparicio_timer: 150};
+        let moto1 = {x: 400, y: 280, amp: 25, al: 15, v: -11, color: 'red', carrils: [270, 300], carril: 0, canvi_timer: 0, tipus: 'moto'};
+        let moto2 = {x: 100, y: 350, amp: 25, al: 15, v: 10, color: 'green', carrils: [340, 380], carril: 0, canvi_timer: 0, tipus: 'moto'};
+
+        let cotxes = [cotxe1, cotxe2, cotxe3, cotxe4, cotxe5, cotxe6, camio1, camio2, moto1, moto2];
+        let carrils_y = [110, 170, 230, 290, 350, 410];
+
+        // Monedes
+        let monedes = [];
+        let moneda_spawn_timer = 0;
+
+        // Sons - Web Audio API
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playSoundCrash() {
+            const now = audioContext.currentTime;
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+
+            osc.frequency.setValueAtTime(800, now);
+            osc.frequency.linearRampToValueAtTime(100, now + 0.3);
+
+            osc.start(now);
+            osc.stop(now + 0.3);
+        }
+
+        function playSoundVictory() {
+            const now = audioContext.currentTime;
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
+
+            osc.frequency.setValueAtTime(523, now);
+            osc.frequency.setValueAtTime(659, now + 0.3);
+
+            osc.start(now);
+            osc.stop(now + 0.6);
+        }
+
+        function playSoundGameOver() {
+            const now = audioContext.currentTime;
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
+
+            osc.frequency.setValueAtTime(262, now);
+            osc.frequency.setValueAtTime(196, now + 0.4);
+
+            osc.start(now);
+            osc.stop(now + 0.8);
+        }
+
+        // Control listeners
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowUp' || e.key === 'w') keys.up = true;
+            if (e.key === 'ArrowDown' || e.key === 's') keys.down = true;
+            if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = true;
+            if (e.key === 'ArrowRight' || e.key === 'd') keys.right = true;
+            if (e.key === ' ') handleRestart();
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowUp' || e.key === 'w') keys.up = false;
+            if (e.key === 'ArrowDown' || e.key === 's') keys.down = false;
+            if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = false;
+            if (e.key === 'ArrowRight' || e.key === 'd') keys.right = false;
+        });
+
+        // Touch controls
+        document.getElementById('btnUp').addEventListener('touchstart', () => keys.up = true);
+        document.getElementById('btnUp').addEventListener('touchend', () => keys.up = false);
+        document.getElementById('btnDown').addEventListener('touchstart', () => keys.down = true);
+        document.getElementById('btnDown').addEventListener('touchend', () => keys.down = false);
+        document.getElementById('btnLeft').addEventListener('touchstart', () => keys.left = true);
+        document.getElementById('btnLeft').addEventListener('touchend', () => keys.left = false);
+        document.getElementById('btnRight').addEventListener('touchstart', () => keys.right = true);
+        document.getElementById('btnRight').addEventListener('touchend', () => keys.right = false);
+
+        // Collision detection
+        function xocGranotaCotxe(granota, cotxe) {
+            return (granota.x < cotxe.x + cotxe.amp &&
+                    granota.x + granota.amp > cotxe.x &&
+                    granota.y < cotxe.y + cotxe.al &&
+                    granota.y + granota.al > cotxe.y);
+        }
+
+        function xocGranotaMoneda(granota, moneda) {
+            return (granota.x < moneda.x + moneda.mida &&
+                    granota.x + granota.amp > moneda.x &&
+                    granota.y < moneda.y + moneda.mida &&
+                    granota.y + granota.al > moneda.y);
+        }
+
+        // Drawing functions
+        function dibuixaGranota(g) {
+            const x = g.x, y = g.y, amp = g.amp, al = g.al;
+
+            // Cos
+            ctx.fillStyle = 'limegreen';
+            ctx.strokeStyle = 'darkgreen';
+            ctx.lineWidth = 2;
+            ctx.fillRect(x + 5, y + 10, amp - 10, al - 15);
+            ctx.strokeRect(x + 5, y + 10, amp - 10, al - 15);
+
+            // Cap
+            ctx.beginPath();
+            ctx.arc(x + amp/2, y + 7, 8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Ulls
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(x + 12, y + 3, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(x + 28, y + 3, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Pupilles
+            ctx.fillStyle = 'black';
+            ctx.beginPath();
+            ctx.arc(x + 12, y + 3, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(x + 28, y + 3, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Potes
+            ctx.fillStyle = 'limegreen';
+            ctx.fillRect(x, y + 20, 8, 6);
+            ctx.fillRect(x + amp - 8, y + 20, 8, 6);
+        }
+
+        function dibuixaCotxe(c) {
+            if (c.visible === false) return;
+
+            const x = c.x, y = c.y, amp = c.amp, al = c.al;
+            const color = c.color;
+            const tipus = c.tipus;
+
+            if (tipus === 'camio') {
+                ctx.fillStyle = color;
+                ctx.strokeStyle = 'black';
+                ctx.lineWidth = 3;
+                ctx.fillRect(x, y + 5, amp, al - 7);
+                ctx.strokeRect(x, y + 5, amp, al - 7);
+
+                ctx.fillStyle = 'lightblue';
+                ctx.strokeStyle = 'navy';
+                ctx.lineWidth = 1;
+                ctx.fillRect(x + 10, y + 1, 10, 6);
+                ctx.strokeRect(x + 10, y + 1, 10, 6);
+                ctx.fillRect(x + 25, y + 1, 10, 6);
+                ctx.strokeRect(x + 25, y + 1, 10, 6);
+
+                ctx.fillStyle = 'black';
+                ctx.beginPath();
+                ctx.arc(x + 9, y + al + 2, 4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(x + amp - 9, y + al + 2, 4, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (tipus === 'moto') {
+                ctx.fillStyle = color;
+                ctx.strokeStyle = 'black';
+                ctx.lineWidth = 1;
+                ctx.fillRect(x + 3, y + 5, amp - 6, al - 7);
+                ctx.strokeRect(x + 3, y + 5, amp - 6, al - 7);
+
+                ctx.fillStyle = 'black';
+                ctx.beginPath();
+                ctx.arc(x + 4, y + al, 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(x + amp - 4, y + al, 2, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                ctx.fillStyle = color;
+                ctx.strokeStyle = 'black';
+                ctx.lineWidth = 2;
+                ctx.fillRect(x, y + 8, amp, al - 10);
+                ctx.strokeRect(x, y + 8, amp, al - 10);
+
+                const cabinWidth = amp * 0.6;
+                const cabinStart = c.v > 0 ? x + (amp - cabinWidth) / 2 : x + amp - cabinWidth;
+                ctx.lineWidth = 1;
+                ctx.fillRect(cabinStart, y, cabinWidth, 10);
+                ctx.strokeRect(cabinStart, y, cabinWidth, 10);
+
+                ctx.fillStyle = 'lightblue';
+                ctx.strokeStyle = 'navy';
+                const windowWidth = cabinWidth * 0.35;
+                const windowSpacing = 5;
+                ctx.fillRect(cabinStart + 2, y + 1, windowWidth - 2, 8);
+                ctx.strokeRect(cabinStart + 2, y + 1, windowWidth - 2, 8);
+                ctx.fillRect(cabinStart + windowWidth + windowSpacing, y + 1, windowWidth - 2, 8);
+                ctx.strokeRect(cabinStart + windowWidth + windowSpacing, y + 1, windowWidth - 2, 8);
+
+                ctx.fillStyle = 'black';
+                ctx.beginPath();
+                ctx.arc(x + 8, y + al - 1, 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(x + amp - 8, y + al - 1, 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function dibuixaMoneda(m) {
+            const x = m.x, y = m.y, mida = m.mida;
+            ctx.fillStyle = 'gold';
+            ctx.strokeStyle = 'orange';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(x + mida/2, y + mida/2, mida/2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = 'yellow';
+            ctx.beginPath();
+            ctx.arc(x + mida/2, y + mida/2, mida/4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function dibuixaCarretera() {
+            ctx.fillStyle = '#333333';
+            ctx.fillRect(0, 100, SCREEN_WIDTH, 350);
+
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < carrils_y.length - 1; i++) {
+                const lineY = carrils_y[i] + 40;
+                for (let x = 0; x < SCREEN_WIDTH; x += 40) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, lineY);
+                    ctx.lineTo(x + 20, lineY);
+                    ctx.stroke();
+                }
+            }
+        }
+
+        function handleRestart() {
+            if (gameState !== 'JUGANT') {
+                gameState = 'JUGANT';
+                vides = 3;
+                puntuacio = 0;
+                monedes = [];
+                moneda_spawn_timer = 0;
+                t0 = Date.now();
+                granota.x = 400;
+                granota.y = 550;
+                cotxe1.x = 50;
+                cotxe2.x = 800;
+                cotxe3.x = 150;
+                cotxe4.x = 600;
+                cotxe5.x = 300;
+                cotxe6.x = 0;
+                camio1.aparicio_timer = 0;
+                camio2.aparicio_timer = 150;
+                moto1.x = 400;
+                moto2.x = 100;
+            }
+        }
+
+        // Game loop timing
+        let lastFrameTime = 0;
+        const frameDelay = 25; // milliseconds between frames (25ms = 40 FPS)
+
+        function gameLoop(currentTime) {
+            // Control frame rate
+            if (currentTime - lastFrameTime < frameDelay) {
+                requestAnimationFrame(gameLoop);
+                return;
+            }
+            lastFrameTime = currentTime;
+
+            // Clear canvas
+            ctx.fillStyle = 'green';
+            ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+            // Draw carretera
+            dibuixaCarretera();
+
+            if (gameState === 'JUGANT') {
+                // Spawn monedes
+                moneda_spawn_timer++;
+                if (moneda_spawn_timer > 80) {
+                    monedes.push({
+                        x: Math.random() * (SCREEN_WIDTH - 50) + 25,
+                        y: Math.random() * 280 + 120,
+                        mida: 15,
+                        timer: 0
+                    });
+                    moneda_spawn_timer = 0;
+                }
+
+                // Update monedes
+                monedes = monedes.filter(m => {
+                    m.timer++;
+                    return m.timer < 300;
+                });
+
+                // Moviment granota
+                if (keys.up) granota.y -= granota.v;
+                if (keys.down) granota.y += granota.v;
+                if (keys.left) granota.x -= granota.v;
+                if (keys.right) granota.x += granota.v;
+
+                granota.x = Math.max(0, Math.min(granota.x, SCREEN_WIDTH - granota.amp));
+                granota.y = Math.max(0, Math.min(granota.y, SCREEN_HEIGHT - granota.al));
+
+                // Moviment cotxes
+                cotxes.forEach(c => {
+                    if (c.tipus === 'camio') {
+                        c.aparicio_timer++;
+                        c.visible = c.aparicio_timer < 200;
+                        if (c.aparicio_timer > 600) c.aparicio_timer = 0;
+                    }
+
+                    c.x += c.v;
+                    if (c.v > 0 && c.x > SCREEN_WIDTH) c.x = -c.amp;
+                    if (c.v < 0 && c.x + c.amp < 0) c.x = SCREEN_WIDTH;
+
+                    c.canvi_timer++;
+                    const tiempo_cambio = 50 + (c.y % 30);
+                    if (c.canvi_timer >= tiempo_cambio) {
+                        c.carril = 1 - c.carril;
+                        c.canvi_timer = 0;
+                    }
+
+                    const targetY = c.carrils[c.carril];
+                    const velocitat = 1.5;
+                    if (c.y < targetY - 0.5) c.y += velocitat;
+                    else if (c.y > targetY + 0.5) c.y -= velocitat;
+                    else c.y = targetY;
+                });
+
+                // Collisions cotxes
+                cotxes.forEach(c => {
+                    if (c.visible !== false && xocGranotaCotxe(granota, c)) {
+                        playSoundCrash();
+                        vides--;
+                        if (vides <= 0) {
+                            gameState = 'GAME_OVER';
+                            playSoundGameOver();
+                        } else {
+                            granota.x = 400;
+                            granota.y = 550;
+                        }
+                    }
+                });
+
+                // Collisions monedes
+                monedes = monedes.filter(m => {
+                    if (xocGranotaMoneda(granota, m)) {
+                        puntuacio += 10;
+                        return false;
+                    }
+                    return true;
+                });
+
+                // Victòria
+                if (granota.y <= 60) {
+                    gameState = 'GUANYAT';
+                    playSoundVictory();
+                }
+
+                tActual = ((Date.now() - t0) / 1000).toFixed(1);
+            }
+
+            // Draw
+            cotxes.forEach(c => dibuixaCotxe(c));
+            dibuixaGranota(granota);
+            monedes.forEach(m => dibuixaMoneda(m));
+
+            // UI
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText('VIDES: ' + '❤️ '.repeat(vides), 10, 30);
+            ctx.textAlign = 'right';
+            ctx.fillText('TEMPS: ' + tActual + 's', SCREEN_WIDTH - 10, 30);
+            ctx.textAlign = 'center';
+            ctx.fillStyle = 'gold';
+            ctx.fillText('MONEDES: ' + puntuacio, SCREEN_WIDTH / 2, 30);
+
+            // Game over screens
+            if (gameState === 'GUANYAT') {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(150, 180, 500, 240);
+                ctx.strokeStyle = 'gold';
+                ctx.lineWidth = 4;
+                ctx.strokeRect(150, 180, 500, 240);
+
+                ctx.fillStyle = 'lime';
+                ctx.font = 'bold 34px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('HAS GUANYAT!!', SCREEN_WIDTH / 2, 260);
+
+                ctx.fillStyle = 'white';
+                ctx.font = '18px Arial';
+                ctx.fillText('TEMPS FINAL: ' + tActual + ' segons', SCREEN_WIDTH / 2, 310);
+                ctx.fillStyle = 'yellow';
+                ctx.font = '14px Arial';
+                ctx.fillText('Prem ESPAI per reiniciar', SCREEN_WIDTH / 2, 350);
+            } else if (gameState === 'GAME_OVER') {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(150, 180, 500, 240);
+                ctx.strokeStyle = 'red';
+                ctx.lineWidth = 4;
+                ctx.strokeRect(150, 180, 500, 240);
+
+                ctx.fillStyle = 'red';
+                ctx.font = 'bold 40px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('GAME OVER', SCREEN_WIDTH / 2, 290);
+
+                ctx.fillStyle = 'yellow';
+                ctx.font = '14px Arial';
+                ctx.fillText('Prem ESPAI per reiniciar', SCREEN_WIDTH / 2, 350);
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start game
+        gameLoop();
+    </script>
+</body>
+</html>

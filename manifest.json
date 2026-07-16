@@ -1,0 +1,17 @@
+{
+  "name": "Joc de la Granota",
+  "short_name": "Granota",
+  "description": "Joc de la granota evitant cotxes i recollint monedes",
+  "start_url": "./index.html",
+  "display": "fullscreen",
+  "background_color": "#ffffff",
+  "theme_color": "#32CD32",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%2332CD32' width='192' height='192'/><circle cx='96' cy='96' r='80' fill='%2300AA00'/><circle cx='75' cy='75' r='15' fill='white'/><circle cx='117' cy='75' r='15' fill='white'/><circle cx='75' cy='75' r='8' fill='black'/><circle cx='117' cy='75' r='8' fill='black'/></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ]
+}
